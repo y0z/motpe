@@ -125,7 +125,7 @@ class GammaFunction:
         self.gamma = gamma
 
     def __call__(self, x):
-        return int(np.ceil(self.gamma * x))  # without upper bound for the number of lower samples
+        return int(np.floor(self.gamma * x))  # without upper bound for the number of lower samples
 
 
 def default_weights(x):
