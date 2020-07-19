@@ -11,7 +11,6 @@ import sys
 
 eps = sys.float_info.epsilon
 
-
 ###############################################################################
 # benchmark
 ###############################################################################
@@ -341,7 +340,8 @@ class TPESampler:
                  n_ei_candidates=24,
                  rule='james',
                  gamma_func=GammaFunction(),
-                 weights_func=default_weights):
+                 weights_func=default_weights,
+                 split_cache=None):
         self.hp = hp
         self._observations = observations
         self._random_state = random_state
@@ -350,6 +350,10 @@ class TPESampler:
         self.weights_func = weights_func
         self.opt = self.sample
         self.rule = rule
+        if split_cache:
+            self.split_cache = split_cache
+        else:
+            self.split_cache = dict()
 
     def sample(self):
         hp_values, ys = self._load_hp_values()
@@ -364,47 +368,56 @@ class TPESampler:
         return self._revert_hp(hp_value)
 
     def _split_observations(self, hp_values, ys, n_lower):
-        rank = nondominated_sort(ys)
-        indices = np.array(range(len(ys)))
-        lower_indices = np.array([], dtype=int)
+        SPLITCACHE_KEY = str(ys)
+        if SPLITCACHE_KEY in self.split_cache:
+            lower_indices = self.split_cache[SPLITCACHE_KEY]['lower_indices']
+            upper_indices = self.split_cache[SPLITCACHE_KEY]['upper_indices']
+        else:
+            rank = nondominated_sort(ys)
+            indices = np.array(range(len(ys)))
+            lower_indices = np.array([], dtype=int)
 
-        # nondominance rank-based selection
-        i = 0
-        while len(lower_indices) + sum(rank == i) <= n_lower:
-            lower_indices = np.append(lower_indices, indices[rank == i])
-            i += 1
+            # nondominance rank-based selection
+            i = 0
+            while len(lower_indices) + sum(rank == i) <= n_lower:
+                lower_indices = np.append(lower_indices, indices[rank == i])
+                i += 1
 
-        # hypervolume contribution-based selection
-        ys_r = ys[rank == i]
-        indices_r = indices[rank == i]
-        worst_point = np.max(ys_r, axis=0)
-        reference_point = np.maximum(
-            np.maximum(
-                1.1 * worst_point, # case: value > 0
-                0.9 * worst_point # case: value < 0
-            ),
-            np.full(len(worst_point), eps) # case: value = 0
-        )
+            # hypervolume contribution-based selection
+            ys_r = ys[rank == i]
+            indices_r = indices[rank == i]
+            worst_point = np.max(ys, axis=0)
+            reference_point = np.maximum(
+                np.maximum(
+                    1.1 * worst_point, # case: value > 0
+                    0.9 * worst_point # case: value < 0
+                ),
+                np.full(len(worst_point), eps) # case: value = 0
+            )
 
-        S = []
-        contributions = []
-        for j in range(len(ys_r)):
-            contributions.append(hypervolume([ys_r[j]]).compute(reference_point))
-        while len(lower_indices) + 1 <= n_lower:
-            hv_S = 0
-            if len(S) > 0:
-                hv_S = hypervolume(S).compute(reference_point)
-            index = np.argmax(contributions)
-            contributions[index] = -1e9  # mark as already selected
-            for j in range(len(contributions)):
-                if j == index:
-                    continue
-                p_q = np.max([ys_r[index], ys_r[j]], axis=0)
-                contributions[j] = contributions[j] \
-                    - (hypervolume(S + [p_q]).compute(reference_point) - hv_S)
-            S = S + [ys_r[index]]
-            lower_indices = np.append(lower_indices, indices_r[index])
-        upper_indices = np.setdiff1d(indices, lower_indices)
+            S = []
+            contributions = []
+            for j in range(len(ys_r)):
+                contributions.append(hypervolume([ys_r[j]]).compute(reference_point))
+            while len(lower_indices) + 1 <= n_lower:
+                hv_S = 0
+                if len(S) > 0:
+                    hv_S = hypervolume(S).compute(reference_point)
+                index = np.argmax(contributions)
+                contributions[index] = -1e9  # mark as already selected
+                for j in range(len(contributions)):
+                    if j == index:
+                        continue
+                    p_q = np.max([ys_r[index], ys_r[j]], axis=0)
+                    contributions[j] = contributions[j] \
+                        - (hypervolume(S + [p_q]).compute(reference_point) - hv_S)
+                S = S + [ys_r[index]]
+                lower_indices = np.append(lower_indices, indices_r[index])
+            upper_indices = np.setdiff1d(indices, lower_indices)
+
+            self.split_cache[SPLITCACHE_KEY] = {
+                'lower_indices': lower_indices, 'upper_indices': upper_indices}
+
         return hp_values[lower_indices], hp_values[upper_indices]
 
     def _distribution_type(self):
@@ -535,13 +548,18 @@ class MOTPE:
 
         # todo: implement sampling conditional parameters
         while len(self._history) < parameters['num_max_evals']:
-            x = {hp.name: TPESampler(hp,
+            split_cache = {}
+            x = {}
+            for hp in cs.get_hyperparameters():
+                sampler = TPESampler(hp,
                                      self._history,
                                      self.random_state,
                                      n_ei_candidates=parameters['num_candidates'],
                                      gamma_func=GammaFunction(parameters['gamma']),
-                                     weights_func=default_weights).sample()
-                 for hp in cs.get_hyperparameters()}
+                                     weights_func=default_weights,
+                                     split_cache=split_cache)
+                x[hp.name] = sampler.sample()
+                split_cache = sampler.split_cache
             r = problem(x)
             record = {'Trial': i, 'x': x, 'f': r}
             self._history.append(record)
