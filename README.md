@@ -1,5 +1,10 @@
 # Multiobjective Tree-structured Parzen Estimator (MOTPE)
 
+## NOTE
+**This repository is no longer maintained.  
+MOTPE is available on [Optuna](https://optuna.org/).  
+Please use the Optuna's MOTPE implementation.**
+
 ## Dependencies
 
 Please install the following Python packages.
