@@ -1,6 +1,20 @@
 # Multiobjective Tree-structured Parzen Estimator (MOTPE)
 
 ## NOTE
+
+**[Journal paper is available!](https://www.jair.org/index.php/jair/article/view/13188)**  
+
+```
+@article{ozaki2022multiobjective,
+  title={Multiobjective Tree-Structured Parzen Estimator},
+  author={Ozaki, Yoshihiko and Tanigaki, Yuki and Watanabe, Shuhei and Nomura, Masahiro and Onishi, Masaki},
+  journal={Journal of Artificial Intelligence Research},
+  volume={73},
+  pages={1209--1250},
+  year={2022}
+}
+```
+
 **This repository is no longer maintained.  
 MOTPE is available on [Optuna](https://optuna.org/).  
 Please use the Optuna's MOTPE implementation.**
