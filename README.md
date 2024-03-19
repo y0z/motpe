@@ -17,7 +17,7 @@
 
 **This repository is no longer maintained.  
 MOTPE is available on [Optuna](https://optuna.org/).  
-Please use the Optuna's MOTPE implementation.**
+Please use the Optuna's MOTPE implementation (TPESampler).**
 
 ## Dependencies
 
